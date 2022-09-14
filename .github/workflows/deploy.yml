@@ -1,0 +1,39 @@
+name: Deploy Fib-Calc
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+      - run: docker build -t tannerlankford/react-test -f ./client/Dockerfile.dev ./client
+      - run: docker run -e CI=true tannerlankford/react-test npm test
+
+      - run: docker build -t tannerlankford/fib-calc-client ./client
+      - run: docker build -t tannerlankford/fib-calc-nginx ./nginx
+      - run: docker build -t tannerlankford/fib-calc-server ./server
+      - run: docker build -t tannerlankford/fib-calc-worker ./worker
+
+      - run: docker push tannerlankford/fib-calc-client
+      - run: docker push tannerlankford/fib-calc-nginx
+      - run: docker push tannerlankford/fib-calc-server
+      - run: docker push tannerlankford/fib-calc-worker
+
+    - name: Generate deployment package
+      run: zip -r deploy.zip . -x '*.git*'
+
+    - name: Deploy to Elastic Beanstalk
+      uses: einaregilsson/beanstalk-deploy@v18
+      with: 
+        aws_access_key: ${{ secrets.AWS_ACCESS_KEY }}
+        aws_secret_key: ${{ secrets.AWS_SECRET_KEY }}
+        application_name: fib-calc
+        environment_name: #### Enter here ####
+        existing_bucket_name: #### Enter here ####
+        region: #### Enter here ####
+        version_label: ${{ github.sha }}
+        deployment_package: deploy.zip
